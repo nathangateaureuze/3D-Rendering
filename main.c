@@ -11,6 +11,39 @@
 
 #define WINDOW_WIDTH 400
 
+struct Shape
+{
+  int (*points)[3];
+  int pointslength;
+
+  int (*relations)[2];
+  int relationslength;
+};
+
+struct Shape shapeconstruct(int *p, int pl, int *r, int rl)
+{
+    struct Shape *s = malloc(sizeof(struct Shape));
+
+    (*s).pointslength = pl;
+    (*s).relationslength = rl;
+
+    (*s).points = malloc(sizeof(int[3]) * (*s).pointslength);
+    (*s).relations = malloc(sizeof(int[2]) * (*s).relationslength);
+
+    for(int i = 0; i < (*s).pointslength; i++)
+    {   
+        (*s).points[i][0] = *(p + 3 * i + 0);
+        (*s).points[i][1] = *(p + 3 * i + 1);
+        (*s).points[i][2] = *(p + 3 * i + 2);
+    }
+    for(int i = 0; i < (*s).relationslength; i++)
+    {
+        (*s).relations[i][0] = *(r + 2 * i + 0);
+        (*s).relations[i][1] = *(r + 2 * i + 1);
+    }
+    
+    return *s;
+}
 
 void line(SDL_Renderer *renderer, int x1, int y1, int x2, int y2) 
 {
@@ -43,23 +76,46 @@ void line(SDL_Renderer *renderer, int x1, int y1, int x2, int y2)
     SDL_RenderPresent(renderer);
 }
 
-void rotation(int points[8][3], double rotationx, double rotationy, int pointssize)
+void rotation(struct Shape s, double rotationx, double rotationy, double rotationz)
 {
-    for (int i = 0; i < pointssize; ++i)
+    for (int i = 0; i < s.pointslength; ++i)
     {
-        int x = points[i][0];
-        int y = points[i][1];
-        int z = points[i][2];
-		
-		//Rotation axe X
-        //points[i][1] = round(y * cos(rotationx) + z * sin(rotationx));
-		
-		//Rotation axe Y
-		points[i][0] = round(x * -sin(rotationy) + z * cos(rotationy));
-		
-		//Rotation axe Z
-        //points[i][0] = round(x * cos(rotation) + y * sin(rotation));
-        //points[i][1] = round(x * -sin(rotation) + y * cos(rotation));
+        int x = s.points[i][0];
+        int y = s.points[i][1];
+        int z = s.points[i][2];
+        
+        //Rotation axe X
+        s.points[i][0] = round(x);
+        s.points[i][1] = round(y * cos(rotationx) + z * -sin(rotationx));
+        s.points[i][2] = round(y * sin(rotationx) + z * cos(rotationx));
+        
+        x = s.points[i][0];
+        y = s.points[i][1];
+        z = s.points[i][2];
+        
+        //Rotation axe Y
+        s.points[i][0] = round(x * cos(rotationy) + z * sin(rotationy));
+        s.points[i][1] = round(y);
+        s.points[i][2] = round(x * sin(rotationy) + z * cos(rotationy));
+        
+        x = s.points[i][0];
+        y = s.points[i][1];
+        z = s.points[i][2];
+        
+        //Rotation axe Z
+        s.points[i][0] = round(x * cos(rotationz) + y * sin(rotationz));
+        s.points[i][1] = round(x * -sin(rotationz) + y * cos(rotationz));
+        s.points[i][2] = round(z);
+
+        /*s.points[i][0] = round( (x * (cos(rotationy) * cos(rotationz))) + 
+                                (y * (cos(rotationy) * sin(rotationz))) + 
+                                (z * sin(rotationy)));
+        s.points[i][1] = round( (x * (sin(rotationx) * sin(rotationy) * cos(rotationz) + cos(rotationx) * sin(rotationz))) + 
+                                (y * (sin(rotationx) * sin(rotationy) * sin(rotationz) + cos(rotationx) * cos(rotationz))) +
+                                (z * cos(rotationy)));
+        s.points[i][2] = round( (x * (cos(rotationx) * sin(rotationy) * cos(rotationz) + sin(rotationx) * sin(rotationz))) +
+                                (y * (cos(rotationx) * sin(rotationy) * sin(rotationz) + sin(rotationz) * cos(rotationz))) +
+                                (z * cos(rotationy)));*/
     }
 }
 
@@ -71,13 +127,13 @@ void shape(SDL_Renderer *renderer, int points[8][3], int relations[12][2], int r
     }
 }
 
-int main(void) 
+int main(int argc, char *argv[]) 
 {
+    int i;
+
     SDL_Event event;
     SDL_Renderer *renderer1;
     SDL_Window *window;
-    int i;
-    int time = 0;
 
     SDL_Init(SDL_INIT_VIDEO);
     SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_WIDTH, 0, &window, &renderer1);
@@ -92,7 +148,8 @@ int main(void)
         SDL_Quit();
         return 0;
     }
-	
+    
+    int time = 0;
 
     int mousepositionx;
     int mousepositiony;
@@ -101,11 +158,17 @@ int main(void)
     double ry = 0;
     double rz = 0;
 
+    int points1[8][3] = {{-100,-100,100},{100,-100,100},{-100,100,100},{100,100,100},{-100,-100,-100},{100,-100,-100},{-100,100,-100},{100,100,-100}};
+    int relations1[12][2] = {{0,1},{0,2},{1,3},{2,3},{0,4},{2,6},{3,7},{1,5},{7,5},{4,5},{6,7},{4,6}};
+
+    struct Shape cube = shapeconstruct((int *)points1, 8, (int *)relations1, 12);
+        
     while (1) 
     {
-		int points1[8][3] = {{-100,-100,100},{100,-100,100},{-100,100,100},{100,100,100},{-100,-100,-100},{100,-100,-100},{-100,100,-100},{100,100,-100}};
-		int relations1[12][2] = {{0,1},{0,2},{1,3},{2,3},{0,4},{2,6},{3,7},{1,5},{7,5},{4,5},{6,7},{4,6}};
-		
+        int points1[8][3] = {{-100,-100,100},{100,-100,100},{-100,100,100},{100,100,100},{-100,-100,-100},{100,-100,-100},{-100,100,-100},{100,100,-100}};
+        
+        cube.points = points1;
+
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
         {
             break;
@@ -116,19 +179,9 @@ int main(void)
             if(strcmp(key, "Z") == 0) 
             {
                 break;
-            }
-            else if(strcmp(key, "A") == 0) 
-            {
-                SDL_SetRenderDrawColor(renderer1, 0, 0, 0, 0);
-                SDL_RenderClear(renderer1);
-                SDL_SetRenderDrawColor(renderer1, 255, 0, 0, 255);
-
-				rx += 0.15;
-                rotation(points1, rx, ry, sizeof(points1)/sizeof(points1[0]));
-                shape(renderer1, points1, relations1, sizeof(relations1)/sizeof(relations1[0]));
-            }             
+            }          
         }
-        else if(event.type == SDL_MOUSEMOTION && time == 1) 
+        else if(event.type == SDL_MOUSEMOTION && time == 16) 
         {
             SDL_SetRenderDrawColor(renderer1, 0, 0, 0, 0);
             SDL_RenderClear(renderer1);
@@ -151,10 +204,10 @@ int main(void)
             {
                 rx -= 0.15;
             }
-            rotation(points1, rx, ry, sizeof(points1)/sizeof(points1[0]));
-            shape(renderer1, points1, relations1, sizeof(relations1)/sizeof(relations1[0]));
+            rotation(cube, rx, ry, 0);
+            shape(renderer1, cube.points, cube.relations, cube.relationslength);
         }
-        if (time == 1)
+        if (time == 16)
         {
             time = 0;
         }
@@ -163,6 +216,10 @@ int main(void)
             time += 1;
         }
     }
+    free(cube.points);
+    free(cube.relations);
+    free(&cube);
+
     SDL_DestroyRenderer(renderer1);
     SDL_DestroyWindow(window);
     SDL_Quit();

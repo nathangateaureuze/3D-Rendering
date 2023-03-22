@@ -1,3 +1,4 @@
-set PATH="C:\Users\GAME2\Desktop\tcc";%PATH%
+set PATH=%~dp0;%PATH%
 tcc main.c -lSDL2
-main
+main.exe
+PAUSE
