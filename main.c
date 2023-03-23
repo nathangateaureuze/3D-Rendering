@@ -162,12 +162,21 @@ int main(int argc, char *argv[])
     int relations1[12][2] = {{0,1},{0,2},{1,3},{2,3},{0,4},{2,6},{3,7},{1,5},{7,5},{4,5},{6,7},{4,6}};
 
     struct Shape cube = shapeconstruct((int *)points1, 8, (int *)relations1, 12);
+
+    int points2[5][3] = {{-100,-100,100},{100,-100,100},{-100,-100,-100},{100,-100,-100},{0,100,0}};
+    int relations2[8][2] = {{0,1},{0,2},{1,3},{2,3},{0,4},{1,4},{2,4},{3,4}};
+
+    struct Shape pyramide = shapeconstruct((int *)points2, 5, (int *)relations2, 8);
         
-    while (1) 
+    while (1)
     {
         int points1[8][3] = {{-100,-100,100},{100,-100,100},{-100,100,100},{100,100,100},{-100,-100,-100},{100,-100,-100},{-100,100,-100},{100,100,-100}};
         
         cube.points = points1;
+
+        int points2[5][3] = {{-100,-100,100},{100,-100,100},{-100,-100,-100},{100,-100,-100},{0,100,0}};
+
+        pyramide.points = points2;
 
         if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
         {
@@ -206,6 +215,8 @@ int main(int argc, char *argv[])
             }
             rotation(cube, rx, ry, 0);
             shape(renderer1, cube.points, cube.relations, cube.relationslength);
+            rotation(pyramide, 0, ry/2, rx/2);
+            shape(renderer1, pyramide.points, pyramide.relations, pyramide.relationslength);
         }
         if (time == 16)
         {
