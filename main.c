@@ -1,15 +1,25 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include <windows.h>
-
-#include <SDL2/SDL.h>
-#undef main
-
-#undef M_PI
+#include <stdlib.h>
 #include <math.h>
 
-#define WINDOW_WIDTH 400
+static int quit = 0;
+
+
+struct imageFrame
+{
+    int width;
+    int height;
+    uint32_t *pixels;
+};
+
+
+LRESULT CALLBACK WindowProcessMessage(HWND, UINT, WPARAM, LPARAM);
+
+static struct imageFrame frame = {0};
+static BITMAPINFO frame_bitmap_info;
+static HBITMAP frame_bitmap = 0;
+static HDC frame_device_context = 0;
+
 
 struct Shape
 {
@@ -19,6 +29,7 @@ struct Shape
   int (*relations)[2];
   int relationslength;
 };
+
 
 struct Shape shapeconstruct(int *p, int pl, int *r, int rl)
 {
@@ -45,8 +56,17 @@ struct Shape shapeconstruct(int *p, int pl, int *r, int rl)
     return *s;
 }
 
-void line(SDL_Renderer *renderer, int x1, int y1, int x2, int y2) 
+
+void line(struct imageFrame *image, int x1, int y1, int x2, int y2) 
 {
+    int centerX = (*image).width / 2;
+    int centerY = (*image).height / 2;
+
+    x1 += centerX;
+    y1 += centerY;
+    x2 += centerX;
+    y2 += centerY;
+
     int dx = abs(x2 - x1);
     int dy = abs(y2 - y1);
     int sx = x1 < x2 ? 1 : -1;
@@ -54,11 +74,17 @@ void line(SDL_Renderer *renderer, int x1, int y1, int x2, int y2)
     int error = dx - dy;
     int error2;
 
-    SDL_RenderDrawPoint(renderer, x1, y1);
+    if (x1 >= 0 && x1 < (*image).width && y1 >= 0 && y1 < (*image).height) 
+    {
+        (*image).pixels[y1 * (*image).width + x1] = 0x5FA816;
+    }
 
     while (x1 != x2 || y1 != y2) 
     {
-        SDL_RenderDrawPoint(renderer, (WINDOW_WIDTH/2)+x1, (WINDOW_WIDTH/2)+y1);
+        if (x1 >= 0 && x1 < (*image).width && y1 >= 0 && y1 < (*image).height) 
+        {
+            (*image).pixels[y1 * (*image).width + x1] = 0x5FA816;
+        }
         error2 = 2 * error;
         
         if (error2 > -dy) 
@@ -73,8 +99,8 @@ void line(SDL_Renderer *renderer, int x1, int y1, int x2, int y2)
             y1 += sy;
         }
     }
-    SDL_RenderPresent(renderer);
 }
+
 
 void rotation(struct Shape s, double rotationx, double rotationy, double rotationz)
 {
@@ -84,155 +110,158 @@ void rotation(struct Shape s, double rotationx, double rotationy, double rotatio
         int y = s.points[i][1];
         int z = s.points[i][2];
         
-        //Rotation axe X
-        s.points[i][0] = round(x);
-        s.points[i][1] = round(y * cos(rotationx) + z * -sin(rotationx));
-        s.points[i][2] = round(y * sin(rotationx) + z * cos(rotationx));
+        //Rotation X axis
+        s.points[i][0] = (int)(x);
+        s.points[i][1] = (int)(y * cos(rotationx) + z * -sin(rotationx));
+        s.points[i][2] = (int)(y * sin(rotationx) + z * cos(rotationx));
         
         x = s.points[i][0];
         y = s.points[i][1];
         z = s.points[i][2];
         
-        //Rotation axe Y
-        s.points[i][0] = round(x * cos(rotationy) + z * sin(rotationy));
-        s.points[i][1] = round(y);
-        s.points[i][2] = round(x * sin(rotationy) + z * cos(rotationy));
+        //Rotation Y axis
+        s.points[i][0] = (int)(x * cos(rotationy) + z * sin(rotationy));
+        s.points[i][1] = (int)(y);
+        s.points[i][2] = (int)(x * sin(rotationy) + z * cos(rotationy));
         
         x = s.points[i][0];
         y = s.points[i][1];
         z = s.points[i][2];
         
-        //Rotation axe Z
-        s.points[i][0] = round(x * cos(rotationz) + y * sin(rotationz));
-        s.points[i][1] = round(x * -sin(rotationz) + y * cos(rotationz));
-        s.points[i][2] = round(z);
-
-        /*s.points[i][0] = round( (x * (cos(rotationy) * cos(rotationz))) + 
-                                (y * (cos(rotationy) * sin(rotationz))) + 
-                                (z * sin(rotationy)));
-        s.points[i][1] = round( (x * (sin(rotationx) * sin(rotationy) * cos(rotationz) + cos(rotationx) * sin(rotationz))) + 
-                                (y * (sin(rotationx) * sin(rotationy) * sin(rotationz) + cos(rotationx) * cos(rotationz))) +
-                                (z * cos(rotationy)));
-        s.points[i][2] = round( (x * (cos(rotationx) * sin(rotationy) * cos(rotationz) + sin(rotationx) * sin(rotationz))) +
-                                (y * (cos(rotationx) * sin(rotationy) * sin(rotationz) + sin(rotationz) * cos(rotationz))) +
-                                (z * cos(rotationy)));*/
+        //Rotation Z axis
+        s.points[i][0] = (int)(x * cos(rotationz) + y * sin(rotationz));
+        s.points[i][1] = (int)(x * -sin(rotationz) + y * cos(rotationz));
+        s.points[i][2] = (int)(z);
     }
 }
 
-void shape(SDL_Renderer *renderer, int points[8][3], int relations[12][2], int relationssize)
+
+void shape(struct imageFrame *image, int points[8][3], int relations[12][2], int relationssize)
 {
     for (int i = 0; i < relationssize; ++i)
     {
-        line(renderer, points[relations[i][0]][0], points[relations[i][0]][1], points[relations[i][1]][0], points[relations[i][1]][1]);
+        line(image, points[relations[i][0]][0], points[relations[i][0]][1], points[relations[i][1]][0], points[relations[i][1]][1]);
     }
 }
 
-int main(int argc, char *argv[]) 
-{
-    int i;
 
-    SDL_Event event;
-    SDL_Renderer *renderer1;
-    SDL_Window *window;
+    ////////////////    3D    /////////////////
 
-    SDL_Init(SDL_INIT_VIDEO);
-    SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_WIDTH, 0, &window, &renderer1);
-    SDL_SetRenderDrawColor(renderer1, 0, 0, 0, 0);
-    SDL_RenderClear(renderer1);
+int i;
+int time = 0;
+double rx = 0;
+double ry = 0;
+double rz = 0;
 
-    if(SDL_SetRelativeMouseMode(SDL_TRUE) != 0)
+int points1[8][3];
+int relations1[12][2] = {{0,1},{0,2},{1,3},{2,3},{0,4},{2,6},{3,7},{1,5},{7,5},{4,5},{6,7},{4,6}};
+
+struct Shape cube;
+
+    ////////////////    3D    /////////////////
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, int nCmdShow) {
+    const wchar_t window_class_name[] = L"My Window Class";
+    static WNDCLASS window_class = { 0 };
+    window_class.lpfnWndProc = WindowProcessMessage;
+    window_class.hInstance = hInstance;
+    window_class.lpszClassName = (PCSTR)window_class_name;
+    RegisterClass(&window_class);
+
+    frame_bitmap_info.bmiHeader.biSize = sizeof(frame_bitmap_info.bmiHeader);
+    frame_bitmap_info.bmiHeader.biPlanes = 1;
+    frame_bitmap_info.bmiHeader.biBitCount = 32;
+    frame_bitmap_info.bmiHeader.biCompression = BI_RGB;
+    frame_device_context = CreateCompatibleDC(0);
+
+    static HWND window_handle;
+    window_handle = CreateWindow((PCSTR)window_class_name, "Drawing Pixels", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                                 640, 300, 640, 480, NULL, NULL, hInstance, NULL);
+    if(window_handle == NULL) { return -1; }
+
+    cube = shapeconstruct((int *)points1, 8, (int *)relations1, 12);
+
+    while(!quit) 
     {
-        SDL_GetError();
-        SDL_DestroyRenderer(renderer1);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 0;
-    }
-    
-    int time = 0;
 
-    int mousepositionx;
-    int mousepositiony;
+        ////////////////    3D    /////////////////
 
-    double rx = 0;
-    double ry = 0;
-    double rz = 0;
-
-    int points1[8][3] = {{-100,-100,100},{100,-100,100},{-100,100,100},{100,100,100},{-100,-100,-100},{100,-100,-100},{-100,100,-100},{100,100,-100}};
-    int relations1[12][2] = {{0,1},{0,2},{1,3},{2,3},{0,4},{2,6},{3,7},{1,5},{7,5},{4,5},{6,7},{4,6}};
-
-    struct Shape cube = shapeconstruct((int *)points1, 8, (int *)relations1, 12);
-
-    int points2[5][3] = {{-100,-100,100},{100,-100,100},{-100,-100,-100},{100,-100,-100},{0,100,0}};
-    int relations2[8][2] = {{0,1},{0,2},{1,3},{2,3},{0,4},{1,4},{2,4},{3,4}};
-
-    struct Shape pyramide = shapeconstruct((int *)points2, 5, (int *)relations2, 8);
-        
-    while (1)
-    {
         int points1[8][3] = {{-100,-100,100},{100,-100,100},{-100,100,100},{100,100,100},{-100,-100,-100},{100,-100,-100},{-100,100,-100},{100,100,-100}};
-        
+
         cube.points = points1;
 
-        int points2[5][3] = {{-100,-100,100},{100,-100,100},{-100,-100,-100},{100,-100,-100},{0,100,0}};
+        ////////////////    3D    /////////////////
 
-        pyramide.points = points2;
+        static MSG message = { 0 };
+        while(PeekMessage(&message, NULL, 0, 0, PM_REMOVE)) { DispatchMessage(&message); }
 
-        if (SDL_PollEvent(&event) && event.type == SDL_QUIT)
-        {
-            break;
-        }
-        else if(event.type == SDL_KEYDOWN) 
-        {
-            const char *key = SDL_GetKeyName(event.key.keysym.sym);
-            if(strcmp(key, "Z") == 0) 
-            {
-                break;
-            }          
-        }
-        else if(event.type == SDL_MOUSEMOTION && time == 16) 
-        {
-            SDL_SetRenderDrawColor(renderer1, 0, 0, 0, 0);
-            SDL_RenderClear(renderer1);
-            SDL_SetRenderDrawColor(renderer1, 255, 0, 0, 255);
-
-            SDL_GetRelativeMouseState(&mousepositionx, &mousepositiony);
-            if (mousepositionx > 20)
-            {
-                ry += 0.15;
-            }
-            else if (mousepositionx < -20)
-            {
-                ry -= 0.15;
-            }
-            if (mousepositiony > 20)
-            {
-                rx += 0.15;
-            }
-            else if (mousepositiony < -20)
-            {
-                rx -= 0.15;
-            }
-            rotation(cube, rx, ry, 0);
-            shape(renderer1, cube.points, cube.relations, cube.relationslength);
-            rotation(pyramide, 0, ry/2, rx/2);
-            shape(renderer1, pyramide.points, pyramide.relations, pyramide.relationslength);
-        }
-        if (time == 16)
-        {
-            time = 0;
-        }
-        else
-        {
-            time += 1;
-        }
+        InvalidateRect(window_handle, NULL, FALSE);
+        UpdateWindow(window_handle);
     }
+
     free(cube.points);
     free(cube.relations);
     free(&cube);
 
-    SDL_DestroyRenderer(renderer1);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return EXIT_SUCCESS;
+    return 0;
+}
+
+
+LRESULT CALLBACK WindowProcessMessage(HWND window_handle, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch(message) 
+    {
+        case WM_QUIT:
+        case WM_DESTROY: 
+            {
+            quit = 1;
+            } break;
+
+        case WM_PAINT: 
+            {
+            static PAINTSTRUCT paint;
+            static HDC device_context;
+            device_context = BeginPaint(window_handle, &paint);
+            BitBlt(device_context,
+                   paint.rcPaint.left, paint.rcPaint.top,
+                   paint.rcPaint.right - paint.rcPaint.left, paint.rcPaint.bottom - paint.rcPaint.top,
+                   frame_device_context,
+                   paint.rcPaint.left, paint.rcPaint.top,
+                   SRCCOPY);
+            EndPaint(window_handle, &paint);
+            } break;
+
+        case WM_SIZE: 
+            {
+                frame_bitmap_info.bmiHeader.biWidth  = LOWORD(lParam);
+                frame_bitmap_info.bmiHeader.biHeight = HIWORD(lParam);
+
+                if(frame_bitmap) DeleteObject(frame_bitmap);
+                frame_bitmap = CreateDIBSection(NULL, &frame_bitmap_info, DIB_RGB_COLORS, &frame.pixels, 0, 0);
+                SelectObject(frame_device_context, frame_bitmap);
+
+                frame.width =  LOWORD(lParam);
+                frame.height = HIWORD(lParam);
+            } break;
+
+        case WM_KEYDOWN:
+            {
+                if (GetAsyncKeyState(0x41)) //A
+                {
+                    for (int i = 0; i < frame.height * frame.width; ++i)
+                    {
+                        frame.pixels[i] = 0x262626;
+                    }
+                    ry += 0.10;
+                    rx += 0.10;
+                    rotation(cube, rx, ry, 0);
+                    shape(&frame, cube.points, cube.relations, cube.relationslength);
+                }
+            } break;
+
+        default: 
+            {
+            return DefWindowProc(window_handle, message, wParam, lParam);
+            }
+    }
+    return 0;
 }
